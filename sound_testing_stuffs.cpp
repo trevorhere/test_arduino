@@ -4,21 +4,48 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 
+
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
-uint32_t value = 0;
-int counter = 0;
 int digitalValue = 0;
 int pin = A0;
+int motor = A1;
+byte value = 0;
 
+int lightState = 0;
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
 
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+
+
+class MyCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+      std::string value = pCharacteristic->getValue();
+
+      if (value.length() > 0) {
+        Serial.println("*********");
+//        Serial.print("New value: ");
+//        for (int i = 0; i < value.length(); i++)
+//          Serial.print(value[i]);
+          int strVal = value[0] - '0';
+
+          if(strVal){
+            Serial.println("on");
+          }else {
+            Serial.println("off");
+          }
+
+        Serial.println();
+        Serial.println("*********");
+      }
+     
+    }
+};
 
 
 class MyServerCallbacks: public BLEServerCallbacks {
@@ -32,13 +59,9 @@ class MyServerCallbacks: public BLEServerCallbacks {
 };
 
 
-
 void setup() {
   
   Serial.begin(115200);
-
-
-  counter = 0;
   BLEDevice::init("ESP32");
 
   // Create the BLE Server
@@ -57,9 +80,11 @@ void setup() {
                       BLECharacteristic::PROPERTY_INDICATE
                     );
 
-  // https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
-  // Create a BLE Descriptor
+
+  pCharacteristic->setCallbacks(new MyCallbacks());
   pCharacteristic->addDescriptor(new BLE2902());
+ 
+
 
   // Start the service
   pService->start();
@@ -73,8 +98,9 @@ void setup() {
 
   
   Serial.println("Waiting a client connection to notify...");
-  pinMode (pin, INPUT); // Set the signal pin as input   
+  pinMode (pin, INPUT); // Set the signal pin as input 
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(motor, OUTPUT);
 
 }
 
@@ -83,33 +109,35 @@ void loop() {
     // notify changed value
     if (deviceConnected) {
 
-       Serial.println("connected");
+        Serial.println("connected");
 
  
         digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
         delay(250);                       // wait for a second
         digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
         delay(250);   
+        
+        digitalWrite(motor, HIGH);   // turn the LED on (HIGH is the voltage level)
+        Serial.println("motor on");
+        delay(3000);                       // wait for a second
+//        digitalWrite(motor, LOW);    // turn the LED off by making the voltage LOW Serial.println("motor on");
+//        Serial.println("motor off");
+//        delay(500);   
 
 
-
-        counter++;
         digitalValue = digitalRead(pin);
 
-          if(digitalValue){
-              Serial.println("quiet");
-               pCharacteristic->setValue("Quiet");
-               pCharacteristic->notify();  
-            } else {
-               Serial.println("LOUD!!!");
-               pCharacteristic->setValue("Loud");
-               pCharacteristic->notify();  
-            }
+        if(digitalValue){
+            Serial.println("quiet");
+             pCharacteristic->setValue("Quiet");
+             pCharacteristic->notify();  
+          } else {
+             Serial.println("LOUD!!!");
+             pCharacteristic->setValue("Loud");
+             pCharacteristic->notify();  
+          }
 
-//        pCharacteristic->setValue(analogValue);
-//        pCharacteristic->notify();
-        value++;
-        delay(100); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
+        delay(200); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
     }
     // disconnecting
     if (!deviceConnected && oldDeviceConnected) {
